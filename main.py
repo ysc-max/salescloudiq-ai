@@ -3,6 +3,7 @@ import tempfile
 from faster_whisper import WhisperModel
 import openai
 import os
+import json
 
 app = FastAPI()
 
@@ -10,9 +11,11 @@ model = WhisperModel("base")
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+
 @app.get("/")
 def root():
     return {"status": "SalesCloud IQ AI running"}
+
 
 @app.post("/analyze-call")
 async def analyze_call(file: UploadFile = File(...)):
@@ -27,43 +30,41 @@ async def analyze_call(file: UploadFile = File(...)):
     transcript = " ".join([segment.text for segment in segments])
 
     prompt = f"""
-You are an AI sales call analysis system.
+You are an AI system that analyzes sales calls.
 
-Analyze the following transcript.
+Analyze the following transcript and return JSON.
 
 Transcript:
 {transcript}
 
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON like this:
 
 {{
-  "deal_score": number between 0 and 100,
-  "summary": "short summary of the call",
-  "objections": ["list of objections mentioned"],
-  "coaching_tips": ["actionable tips for the sales rep"]
+  "deal_score": 0,
+  "summary": "short summary",
+  "objections": ["list objections"],
+  "coaching_tips": ["tip1", "tip2"]
 }}
-"""
-    
-Analyze the following sales call transcript.
-
-Transcript:
-{transcript}
-
-Return:
-
-1. Deal Score (0-100)
-2. Objections detected
-3. Coaching tips for the sales rep
 """
 
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
-        messages=[{"role":"user","content":prompt}]
+        messages=[{"role": "user", "content": prompt}]
     )
 
-    analysis = response.choices[0].message.content
+    content = response.choices[0].message.content
+
+    try:
+        analysis_json = json.loads(content)
+    except:
+        analysis_json = {
+            "deal_score": 0,
+            "summary": content,
+            "objections": [],
+            "coaching_tips": []
+        }
 
     return {
         "transcript": transcript,
-        "analysis": analysis
+        "analysis": analysis_json
     }
