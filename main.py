@@ -1,23 +1,16 @@
 from fastapi import FastAPI, UploadFile, File
-import tempfile
-from faster_whisper import WhisperModel
 from openai import OpenAI
+import tempfile
 import os
 import json
 
 app = FastAPI()
 
-# Whisper model (lightweight)
-model = WhisperModel("tiny")
-
-# OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 
 @app.get("/")
 def root():
     return {"status": "SalesCloud IQ AI running"}
-
 
 @app.post("/analyze-call")
 async def analyze_call(file: UploadFile = File(...)):
@@ -30,33 +23,40 @@ async def analyze_call(file: UploadFile = File(...)):
             temp.write(contents)
             audio_path = temp.name
 
-        # Transcribe audio
-        segments, _ = model.transcribe(audio_path)
-        transcript = " ".join([segment.text for segment in segments])
+        # Transcribe with OpenAI Whisper API (no local model)
+        with open(audio_path, "rb") as audio_file:
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
 
-        # Build AI prompt
-        prompt = (
-            "You are an AI system that analyzes sales calls.\n\n"
-            "Analyze the following transcript and return JSON.\n\n"
-            f"Transcript:\n{transcript}\n\n"
-            "Return ONLY valid JSON in this format:\n"
-            "{"
-            "\"deal_score\": number between 0 and 100,"
-            "\"summary\": \"short summary of the call\","
-            "\"objections\": [\"list of objections mentioned\"],"
-            "\"coaching_tips\": [\"actionable tips for the sales rep\"]"
-            "}"
-        )
+        transcript = transcription.text
 
-        # Call OpenAI
-        response = client.chat.completions.create(
+        prompt = f"""
+You are an AI sales call analyzer.
+
+Analyze this transcript and return JSON only.
+
+Transcript:
+{transcript}
+
+Return format:
+
+{{
+"deal_score": number 0-100,
+"summary": "short summary",
+"objections": ["list objections"],
+"coaching_tips": ["list coaching tips"]
+}}
+"""
+
+        completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]
         )
 
-        content = response.choices[0].message.content
+        content = completion.choices[0].message.content
 
-        # Try parsing JSON
         try:
             analysis_json = json.loads(content)
         except:
@@ -73,6 +73,4 @@ async def analyze_call(file: UploadFile = File(...)):
         }
 
     except Exception as e:
-        return {
-            "error": str(e)
-        }
+        return {"error": str(e)}
