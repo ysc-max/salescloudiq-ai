@@ -27,8 +27,23 @@ async def analyze_call(file: UploadFile = File(...)):
     transcript = " ".join([segment.text for segment in segments])
 
     prompt = f"""
-You are an AI sales coach.
+You are an AI sales call analysis system.
 
+Analyze the following transcript.
+
+Transcript:
+{transcript}
+
+Return ONLY valid JSON in this format:
+
+{{
+  "deal_score": number between 0 and 100,
+  "summary": "short summary of the call",
+  "objections": ["list of objections mentioned"],
+  "coaching_tips": ["actionable tips for the sales rep"]
+}}
+"""
+    
 Analyze the following sales call transcript.
 
 Transcript:
