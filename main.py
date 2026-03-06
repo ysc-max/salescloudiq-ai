@@ -27,7 +27,7 @@ async def analyze_call(file: UploadFile = File(...)):
         with open(audio_path, "rb") as audio_file:
             transcription = client.audio.transcriptions.create(
                 model="whisper-1",
-                file=audio_file
+                file=(file.filename, audio_file, "audio/wav")
             )
 
         transcript = transcription.text
